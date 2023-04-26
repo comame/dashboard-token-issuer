@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"time"
@@ -56,7 +56,7 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("X-Token")
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println(err.Error())
 			responseRedirectToLoginPage(w)
 			return
 		}
@@ -67,21 +67,21 @@ func main() {
 
 		jwtPayload, err := extractJwtPayload(cookie.Value)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println(err.Error())
 			responseRedirectToLoginPage(w)
 			return
 		}
 
 		decodedTokenBytes, err := base64.RawStdEncoding.DecodeString(jwtPayload)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println(err.Error())
 			responseRedirectToLoginPage(w)
 			return
 		}
 		var decodedToken JwtPayloadPartial
 		err = json.Unmarshal(decodedTokenBytes, &decodedToken)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println(err.Error())
 			responseRedirectToLoginPage(w)
 			return
 		}
@@ -95,34 +95,17 @@ func main() {
 			return
 		}
 
-		url := r.URL
-		url.Scheme = "https"
-		url.Host = DASHBOARD_URI_HOST
-
-		req, err := http.NewRequest(r.Method, url.String(), r.Body)
-		if err != nil {
-			fmt.Println(err)
-			w.WriteHeader(500)
-			w.Write([]byte(fmt.Sprintf("error: %s", err)))
-			return
+		rp := &httputil.ReverseProxy{
+			Rewrite: func(pr *httputil.ProxyRequest) {
+				newUrl, _ := url.Parse(DASHBOARD_URI_HOST)
+				pr.SetURL(newUrl)
+				pr.Out.Header.Set("Authorization", "Bearer "+cookie.Value)
+			},
 		}
-
-		copyHeader(req.Header, r.Header, []string{"Cookie", "X-Csrf-Token"})
-		req.Header.Set("Authorization", "Bearer "+cookie.Value)
-
-		res, err := new(http.Client).Do(req)
-		if err != nil {
-			fmt.Println(err)
-			w.WriteHeader(500)
-			w.Write([]byte(fmt.Sprintf("error: %s", err)))
-			return
-		}
-
-		copyHeader(w.Header(), res.Header, []string{"Content-Type", "Set-Cookie"})
-		w.WriteHeader(res.StatusCode)
-		io.Copy(w, res.Body)
-		res.Body.Close()
+		rp.ServeHTTP(w, r)
 	})
+
+	fmt.Println("start http://localhost:8080")
 	http.ListenAndServe(":8080", nil)
 }
 
