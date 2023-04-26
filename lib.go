@@ -39,23 +39,6 @@ func validateIsFilled(obj interface{}) bool {
 	panic("unreachable")
 }
 
-func includes(arr []string, value string) bool {
-	for _, v := range arr {
-		if v == value {
-			return true
-		}
-	}
-	return false
-}
-
-func copyHeader(target http.Header, origin http.Header, keys []string) {
-	for key := range origin {
-		if includes(keys, key) {
-			target.Set(key, origin.Get(key))
-		}
-	}
-}
-
 func extractJwtPayload(jwt string) (string, error) {
 	splited := strings.Split(jwt, ".")
 	if len(splited) != 3 {
