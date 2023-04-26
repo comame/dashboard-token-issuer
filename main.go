@@ -2,12 +2,14 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 var API_HOST = "https://s1.comame.dev:6443"
@@ -54,13 +56,42 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("X-Token")
 		if err != nil {
-			w.Header().Set("Location", "/openid")
-			w.WriteHeader(302)
+			fmt.Println(err)
+			responseRedirectToLoginPage(w)
 			return
 		}
 		if cookie == nil {
-			w.Header().Set("Location", "/openid")
-			w.WriteHeader(302)
+			responseRedirectToLoginPage(w)
+			return
+		}
+
+		jwtPayload, err := extractJwtPayload(cookie.Value)
+		if err != nil {
+			fmt.Println(err)
+			responseRedirectToLoginPage(w)
+			return
+		}
+
+		decodedTokenBytes, err := base64.RawStdEncoding.DecodeString(jwtPayload)
+		if err != nil {
+			fmt.Println(err)
+			responseRedirectToLoginPage(w)
+			return
+		}
+		var decodedToken JwtPayloadPartial
+		err = json.Unmarshal(decodedTokenBytes, &decodedToken)
+		if err != nil {
+			fmt.Println(err)
+			responseRedirectToLoginPage(w)
+			return
+		}
+
+		now := time.Now().Unix()
+		fmt.Println(now)
+		fmt.Println(decodedToken)
+		if now >= decodedToken.Exp {
+			fmt.Println("expired")
+			responseRedirectToLoginPage(w)
 			return
 		}
 
@@ -70,7 +101,10 @@ func main() {
 
 		req, err := http.NewRequest(r.Method, url.String(), r.Body)
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
+			w.WriteHeader(500)
+			w.Write([]byte(fmt.Sprintf("error: %s", err)))
+			return
 		}
 
 		copyHeader(req.Header, r.Header, []string{"Cookie", "X-Csrf-Token"})
@@ -78,7 +112,10 @@ func main() {
 
 		res, err := new(http.Client).Do(req)
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
+			w.WriteHeader(500)
+			w.Write([]byte(fmt.Sprintf("error: %s", err)))
+			return
 		}
 
 		copyHeader(w.Header(), res.Header, []string{"Content-Type", "Set-Cookie"})
@@ -162,4 +199,9 @@ func generateRedirectURI() string {
 func generateAuthenticationInitiateURI() string {
 	nonce := "nonce"
 	return "https://accounts.comame.xyz/authenticate?client_id=kubernetes&scope=openid&response_type=code&nonce=" + nonce + "&redirect_uri=" + generateRedirectURI()
+}
+
+func responseRedirectToLoginPage(w http.ResponseWriter) {
+	w.Header().Set("Location", "/openid")
+	w.WriteHeader(302)
 }

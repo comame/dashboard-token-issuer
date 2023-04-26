@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"reflect"
+	"strings"
 )
 
 func requestAndGetStr(req *http.Request) (string, error) {
@@ -52,4 +54,12 @@ func copyHeader(target http.Header, origin http.Header, keys []string) {
 			target.Set(key, origin.Get(key))
 		}
 	}
+}
+
+func extractJwtPayload(jwt string) (string, error) {
+	splited := strings.Split(jwt, ".")
+	if len(splited) != 3 {
+		return "", errors.New("Invalid_JWT_Format")
+	}
+	return splited[1], nil
 }

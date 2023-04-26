@@ -27,3 +27,7 @@ type TokenResponseStatus struct {
 type CodeResponse struct {
 	IdToken string `json:"id_token"`
 }
+
+type JwtPayloadPartial struct {
+	Exp int64 `json:"exp"`
+}
