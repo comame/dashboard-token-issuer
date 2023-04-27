@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/comame/readenv-go"
 )
 
 var API_HOST = "https://s1.comame.dev:6443"
@@ -23,7 +25,7 @@ type Env struct {
 
 func main() {
 	var env Env
-	readenv(&env)
+	readenv.Read(&env)
 	IDP_CLIENT_SECRET = env.IdpClientSecret
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
