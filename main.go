@@ -14,10 +14,18 @@ import (
 
 var API_HOST = "https://s1.comame.dev:6443"
 var DASHBOARD_URI_HOST = "kubernetes-dashboard.kubernetes-dashboard.svc.cluster.local"
-var IDP_CLIENT_SECRET = "wWJpavFCKT-f9cgdtqJmC94nNPCtMAhi"
+var IDP_CLIENT_SECRET = ""
 var ORIGIN = "https://dash.cluster.comame.dev"
 
+type Env struct {
+	IdpClientSecret string `env:"IDP_CLIENT_SECRET"`
+}
+
 func main() {
+	var env Env
+	readenv(&env)
+	IDP_CLIENT_SECRET = env.IdpClientSecret
+
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
 	http.HandleFunc("/openid", func(w http.ResponseWriter, r *http.Request) {
