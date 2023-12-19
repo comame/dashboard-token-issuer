@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -15,7 +16,7 @@ import (
 )
 
 var API_HOST = "https://s1.comame.dev:6443"
-var DASHBOARD_URI_HOST = "kubernetes-dashboard.kubernetes-dashboard.svc.cluster.local"
+var DASHBOARD_URI_HOST = "https://kubernetes-dashboard.kubernetes-dashboard.svc.cluster.local"
 var IDP_CLIENT_SECRET = ""
 var ORIGIN = "https://dash.cluster.comame.dev"
 
@@ -27,6 +28,8 @@ func main() {
 	var env Env
 	readenv.Read(&env)
 	IDP_CLIENT_SECRET = env.IdpClientSecret
+
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
@@ -41,14 +44,14 @@ func main() {
 		token, err := getOIDCToken(code)
 		if err != nil {
 			w.WriteHeader(400)
-			w.Write([]byte(fmt.Sprintf("error: %s", err)))
+			w.Write([]byte(fmt.Sprintf("error in getOIDCToken: %s", err)))
 			return
 		}
 
 		token, err = getKubernetesToken(token)
 		if err != nil {
 			w.WriteHeader(400)
-			w.Write([]byte(fmt.Sprintf("error: %s", err)))
+			w.Write([]byte(fmt.Sprintf("error in getKubernetesToken: %s", err)))
 		}
 
 		http.SetCookie(w, &http.Cookie{
@@ -108,10 +111,17 @@ func main() {
 		rp := &httputil.ReverseProxy{
 			Rewrite: func(pr *httputil.ProxyRequest) {
 				newUrl, _ := url.Parse(DASHBOARD_URI_HOST)
+				log.Printf("%+v", *newUrl)
 				pr.SetURL(newUrl)
 				pr.Out.Header.Set("Authorization", "Bearer "+cookie.Value)
 			},
 		}
+		rp.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}
+
 		rp.ServeHTTP(w, r)
 	})
 
